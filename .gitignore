@@ -1,0 +1,15 @@
+# Obsidian
+.obsidian/workspace
+.obsidian/workspace.json
+.obsidian/workspaces.json
+.obsidian/plugins/obsidian-file-recovery/data.json
+.obsidian/graph.json
+.obsidian/community-plugins.json
+.obsidian/hotkeys.json
+
+# Trash
+.trash/
+
+# System files
+.DS_Store
+Thumbs.db
