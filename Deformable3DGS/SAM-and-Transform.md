@@ -1,34 +1,31 @@
-## Debug
-> SAM版本的渲染
-## Deform Model的输入与输出
+好的，根据我们当前代码的最新状态，以下是模型输入、输出及内部嵌入的数学公式化表示。我们已经考虑了您对特征组成的修改，以及调试输出中观察到的实际维度。
+
 ### 1. 位置编码 (Positional Encoding)
 
-项目使用 `utils.time_utils.get_embedder` 进行位置编码。对于任何输入的标量值 x，编码函数 PE(x) 将其映射为高维向量。
+项目使用 `utils.time_utils.get_embedder` 函数进行位置编码。它将一个标量值 x 映射为一个高维向量。
 
-- **输入:** 标量 x∈R。
+- **输入:** 标量 x∈R (例如时间 `fid` 或相对坐标 `dx`, `dy`)。
     
 - **输出:** 编码向量 PE(x)∈RDembed​。
     
-    - 尽管典型的正弦/余弦位置编码输出维度是 2L，但根据您提供的调试信息，`get_embedder` 实际返回的维度有所不同。
+    - **时间编码维度 (Dtime_emb​):** 根据调试输出，实际 observed Dtime_emb​=21。
         
-    - **时间编码维度 (Dtime_emb​):** 对于时间 `fid`，实际观察到 Dtime_emb​=21。
-        
-    - **空间编码维度 (Dspatial_emb​):** 对于 dx 或 dy 坐标，实际观察到 Dspatial_emb​=12。
+    - **空间编码维度 (Dspatial_emb​):** 根据调试输出，实际 observed Dspatial_emb​=12。
         
 
 ### 2. `gather_transformer_inputs_batched` 函数的输出 (DeformModel 的输入)
 
-此函数（位于 `train.py`）负责构建 `DeformModel` 的输入特征张量。设批量大小为 Nbatch​，每个中心点有 K 个邻居。
+此函数（位于 `train.py`）负责构建传递给 `DeformModel` 的特征张量。设批量大小为 Nbatch​，每个中心点有 K 个邻居。
 
 #### a. `center_features` (中心高斯点特征)
 
-- **组成:** 由中心高斯点的三维坐标 (`xyz`) 和时间编码拼接而成。
+- **组成:** 中心高斯点的三维坐标 (`xyz`) 和时间编码的拼接。
     
 - **来源:**
     
-    - `xyz` 坐标 Pxyz(i)​∈R3: 来自 `gaussians.get_xyz[batch_indices]`。
+    - `xyz` 坐标 Pxyz(i)​∈R3: 来自 `gaussians.get_xyz`。
         
-    - 时间编码 PE(t)∈RDtime_emb​: 来自 `embed_time_fn(fid)` 的结果。
+    - 时间编码 PE(t)∈RDtime_emb​: 来自 `embed_time_fn(fid)`。
         
 - 数学公式:
     
@@ -38,70 +35,66 @@
     
 - **维度:** 3+Dtime_emb​=3+21=24。
     
-    - 对应的调试输出: `torch.Size([N_batch, 24])`。
+    - 调试输出示例: `torch.Size([N_batch, 24])`。
         
 
 #### b. `neighbor_features` (邻居高斯点特征)
 
-- **组成:** 由邻居高斯点的几何属性、时间编码、以及其相对于中心点的 dx 和 dy 坐标的位置编码拼接而成。
+- **组成:** 根据最新修改，邻居高斯点的特征也仅由其三维坐标 (`xyz`) 和时间编码组成，与中心高斯点特征的内部结构相同。
     
 - **来源:**
     
-    - **几何属性** G(i,j)∈R7:
+    - `xyz` 坐标 Pxyz(i,j)​∈R3: 来自 `gaussians.get_xyz`。
         
-        - `scale_{xy}^{(i,j)} \in \mathbb{R}^2$: 来自` gaussians.get_scaling_xy`。
-            
-        - `rot^{(i,j)} \in \mathbb{R}^4`: 来自 `gaussians._rotation` (四元数)。
-            
-        - `\alpha^{(i,j)} \in \mathbb{R}^1`: 来自 `gaussians.get_opacity`。
-            
-        - 拼接形成 G(i,j)=[scalexy(i,j)​,rot(i,j),α(i,j)]。
-            
-    - **时间编码** PE(t)∈RDtime_emb​: 与中心点相同的时间编码。
+    - 时间编码 PE(t)∈RDtime_emb​: 与中心点相同的时间编码。
         
-    - **空间相对位置编码** (PE(Δx(i,j)),PE(Δy(i,j))∈RDspatial_emb​):
-        
-        - Δx(i,j),Δy(i,j) 是邻居点 Ppixel(i,j)​ 与中心点 Ppixel(i)​ 在像素坐标上的直接差值：(Δx(i,j),Δy(i,j))=Ppixel(i,j)​−Ppixel(i)​。
-            
-        - `spatial_embed_fn` 对 Δx(i,j) 和 Δy(i,j) 分别进行位置编码。
-            
 - 数学公式:
     
-    Fneighbor(i,j)​=[G(i,j),PE(t),PE(Δx(i,j)),PE(Δy(i,j))]
-- **维度:** Dgeom​+Dtime_emb​+2⋅Dspatial_emb​=7+21+2⋅12=7+21+24=52。
+    Fneighbor(i,j)​=[Pxyz(i,j)​,PE(t)]
+- **维度:** 3+Dtime_emb​=3+21=24。
     
-    - 对应的调试输出: `torch.Size([N_batch, K, 52])`。
+    - 调试输出示例: `torch.Size([N_batch, K, 24])`。
         
 
 #### c. `relative_positions` (原始相对位置)
 
-- **组成:** 原始的二维像素坐标差值 (Δx,Δy)。
+- **组成:** 邻居高斯点相对于中心高斯点在图像像素坐标系中的原始二维像素坐标差值 (Δx,Δy)。
+    
+- **来源:** 通过像素坐标相减计算。
     
 - 数学公式:
     
     Rpos(i,j)​=(Δx(i,j),Δy(i,j))
-- **维度:** 2 (对于每个邻居)。最终张量形状为 `[N_batch, K, 2]`。
+- **维度:** `[N_batch, K, 2]`。
     
 
 ### 3. `TransformerDeformNetwork` 的内部嵌入与操作
 
 `TransformerDeformNetwork` (位于 `utils/transformer_utils.py`) 接收上述输入并进行处理。
 
-- **输入特征嵌入 (Input Feature Embedding):**
+- **输入:**
     
-    - 中心点嵌入: 将 Fcenter​ 映射到 Transformer 的模型维度 dmodel​。
+    - `center_features`: Fcenter​∈RNbatch​×24
+        
+    - `neighbor_features`: Fneighbor​∈RNbatch​×K×24
+        
+    - `relative_positions`: Rpos​∈RNbatch​×K×2 (用于 `position_encoder`)
+        
+- **内部嵌入 (Input Embedding Layers):**
+    
+    - 中心点输入嵌入: 将 center_features 映射到 Transformer 的模型维度 dmodel​ (例如 256)。
         
         Ecenter(i)​=Linearcenter​(Fcenter(i)​)∈Rdmodel​
-        - `Linear_center` 的输入维度是 `center_feature_input_dim = 24`。
+        - `Linear_center` (即 `self.center_input_embedding`) 的输入维度是 `24`。
             
-    - 邻居点嵌入: 将 Fneighbor​ 映射到 Transformer 的模型维度 dmodel​。
+    - 邻居点输入嵌入: 将 neighbor_features 映射到 Transformer 的模型维度 dmodel​。
         
         Eneighbor(i,j)​=Linearneighbor​(Fneighbor(i,j)​)∈Rdmodel​
-        - `Linear_neighbor` 的输入维度是 `neighbor_feature_input_dim = 52`。
+        - `Linear_neighbor` (即 `self.neighbor_input_embedding`) 的输入维度是 `24`。
             
 - **相对位置编码 (Position Encoder):**
     
-    - 将原始的二维相对位置 Rpos(i,j)​ 映射到 dmodel​ 维，然后加到邻居嵌入上。
+    - 将原始的二维相对位置 Rpos(i,j)​ (形状 `[N_batch, K, 2]`) 映射到 dmodel​ 维，然后加到邻居嵌入上。
         
     - Erel_pos(i,j)​=MLPpos​(Rpos(i,j)​)∈Rdmodel​
         - `MLP_pos` (即 `self.position_encoder`) 的输入维度是 `2` (原始 Δx,Δy)，输出维度是 `d_model`。
@@ -113,11 +106,11 @@
     - 将中心点嵌入（扩展一维）与处理后的邻居嵌入拼接，形成 Transformer 的输入序列。
         
     - $$\mathbf{S}^{(i)} = [\mathbf{E}_{center}^{(i)}, \mathbf{E}'_{neighbor}^{(i,1)}, \dots, \mathbf{E}'_{neighbor}^{(i,K)}]$$
-    - 序列形状: [Nbatch​,1+K,dmodel​]。
+    - 序列形状: `[N_batch, 1+K, d_model]`。
         
 - **Transformer 编码器:**
     
-    - 将序列 S(i) 输入 Transformer 编码器。
+    - 将序列 S(i) 输入 `TransformerEncoder`。
         
     - O(i)=TransformerEncoder(S(i))∈R(1+K)×dmodel​
     - `TransformerEncoder` 的输出形状与输入序列形状相同。
@@ -140,7 +133,7 @@
     
 - **不透明度变化 (dopacity​):** Δα(i)∈R1
     
-- **旋转变化 (drotation​):** Δqrot(i)​∈R2 (注意：虽然四元数通常是 4 维，但您的代码中输出的 `d_rotation` 部分是 2 维，这意味着它可能预测的是旋转的某些特定分量或编码，而不是完整的四元数)。
+- **旋转变化 (drotation​):** Δqrot(i)​∈R2 (这表示预测的是旋转的某些特定分量，而不是完整的四元数)。
     
 
-这些变形量最终将应用于高斯点的原始属性，以生成动态帧。
+这些变形量最终将应用于高斯点的原始属性，以生成动态场景的渲染帧。
