@@ -68,7 +68,10 @@
 - **维度:** `[N_batch, K, 2]`。
     
 
-### 3. `TransformerDeformNetwork` 的内部嵌入与操作
+### 3. ransformer 的模型维度 dmodel​ (例如 256)。
+        
+        Ecenter(i)​=Linearcenter​(Fcenter(i)​)∈Rdmodel​
+        - `Linear_center` (即 `self.`TransformerDeformNetwork` 的内部嵌入与操作
 
 `TransformerDeformNetwork` (位于 `utils/transformer_utils.py`) 接收上述输入并进行处理。
 
@@ -82,10 +85,7 @@
         
 - **内部嵌入 (Input Embedding Layers):**
     
-    - 中心点输入嵌入: 将 center_features 映射到 Transformer 的模型维度 dmodel​ (例如 256)。
-        
-        Ecenter(i)​=Linearcenter​(Fcenter(i)​)∈Rdmodel​
-        - `Linear_center` (即 `self.center_input_embedding`) 的输入维度是 `24`。
+    - 中心点输入嵌入: 将 center_features 映射到 Tcenter_input_embedding`) 的输入维度是 `24`。
             
     - 邻居点输入嵌入: 将 neighbor_features 映射到 Transformer 的模型维度 dmodel​。
         
