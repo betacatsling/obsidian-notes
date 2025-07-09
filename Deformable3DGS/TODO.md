@@ -1,2 +1,3 @@
 - [ ] 尝试1：为高斯点添加一个feature，然后将中心点和它的邻域的信息输进Deform MLP  (@2025-07-16)
-- [ ] 
+- [ ] EMDiffuse test EPFL
+- [ ] 调试Transformer版本的代码
